@@ -1,4 +1,4 @@
-import type { CountryData, YearData } from '../types'
+import type { CountryData, YearData, VisaType } from '../types'
 
 export function getYearData(country: CountryData, year: number): YearData | null {
   return country.byYear[String(year)] ?? null
@@ -6,6 +6,22 @@ export function getYearData(country: CountryData, year: number): YearData | null
 
 export function getTotalInflow(country: CountryData, year: number): number {
   return getYearData(country, year)?.totalInflow ?? 0
+}
+
+export function getMetricValue(yd: YearData | null | undefined, visaType: VisaType | null): number {
+  if (!yd) return 0
+  return visaType ? yd.visa[visaType] : yd.totalInflow
+}
+
+export function visaTypeLabel(visaType: VisaType | null): string {
+  if (!visaType) return 'All Visas'
+  return {
+    student: 'Student',
+    work: 'Work',
+    resident: 'Resident',
+    visitor: 'Visitor',
+    other: 'Other',
+  }[visaType]
 }
 
 export function formatNumber(n: number): string {

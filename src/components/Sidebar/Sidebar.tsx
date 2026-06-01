@@ -16,13 +16,10 @@ export default function Sidebar() {
     >
       {/* Header */}
       <div className="px-5 pt-5 pb-4 border-b border-dark-border shrink-0">
-        <div className="text-[10px] text-[var(--color-text-dim)] uppercase tracking-widest mb-0.5">
-          Information Visualization
-        </div>
-        <h1 className="text-base font-semibold leading-tight text-[var(--color-text)]">
+        <h1 className="text-xl font-semibold leading-tight text-[var(--color-text)]">
           NZ Migration Inflow Explorer
         </h1>
-        <div className="text-[11px] text-[var(--color-text-dim)] mt-0.5">2016 – 2025</div>
+        <div className="text-xs text-[var(--color-text-dim)] mt-1">2016 – 2025</div>
       </div>
 
       {/* Mode badge */}
@@ -62,6 +59,9 @@ export default function Sidebar() {
               <div>Hover country → Profile · Right-click → Global view</div>
             </>
           )}
+        </div>
+        <div className="mt-2 border-t border-dark-border pt-2 text-[10px] text-[var(--color-text-dim)]">
+          Data source: Statistics New Zealand (Stats NZ)
         </div>
       </div>
     </aside>

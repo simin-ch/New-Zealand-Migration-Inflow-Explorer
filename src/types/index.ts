@@ -1,4 +1,5 @@
 export type ViewMode = 'global' | 'continent'
+export type VisaType = 'student' | 'work' | 'resident' | 'visitor' | 'other'
 
 export interface AgeBreakdown {
   under18: number

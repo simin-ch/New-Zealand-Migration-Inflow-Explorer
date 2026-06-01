@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { ViewMode, MigrationData, CountryData } from '../types'
+import type { ViewMode, MigrationData, CountryData, VisaType } from '../types'
 
 interface AppState {
   data: MigrationData | null
@@ -10,6 +10,7 @@ interface AppState {
   selectedCountry: CountryData | null
   focusedCountry: CountryData | null
   inflowClassFilter: number | null
+  selectedVisaType: VisaType | null
 
   setData: (data: MigrationData) => void
   setYear: (year: number) => void
@@ -19,6 +20,7 @@ interface AppState {
   setSelectedCountry: (country: CountryData | null) => void
   setFocusedCountry: (country: CountryData | null) => void
   setInflowClassFilter: (classIndex: number | null) => void
+  setSelectedVisaType: (visaType: VisaType | null) => void
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -30,6 +32,7 @@ export const useAppStore = create<AppState>((set) => ({
   selectedCountry: null,
   focusedCountry: null,
   inflowClassFilter: null,
+  selectedVisaType: null,
 
   setData: (data) => set({ data }),
   setYear: (year) => set({ year }),
@@ -39,4 +42,5 @@ export const useAppStore = create<AppState>((set) => ({
   setSelectedCountry: (country) => set({ selectedCountry: country }),
   setFocusedCountry: (country) => set({ focusedCountry: country }),
   setInflowClassFilter: (inflowClassFilter) => set({ inflowClassFilter }),
+  setSelectedVisaType: (selectedVisaType) => set({ selectedVisaType }),
 }))

@@ -5,6 +5,7 @@ import { PathLayer, GeoJsonLayer } from '@deck.gl/layers'
 import { useAppStore } from '../../store/useAppStore'
 import { classIndex, inflowToColor } from '../../utils/colorScale'
 import { continentRgb } from '../../utils/continentColors'
+import { getMetricValue, visaTypeLabel } from '../../utils/dataHelpers'
 import type { CountryData, ContinentArcData } from '../../types'
 
 const NZ_CENTER: [number, number] = [174.0, -41.0]
@@ -143,7 +144,7 @@ export default function MapView() {
   }, [])
 
   const {
-    data, year, viewMode, hoveredCountry, selectedCountry, focusedCountry, inflowClassFilter,
+    data, year, viewMode, hoveredCountry, selectedCountry, focusedCountry, inflowClassFilter, selectedVisaType,
     setSelectedContinent,
     setHoveredCountry, setSelectedCountry, setFocusedCountry,
   } = useAppStore()
@@ -152,11 +153,27 @@ export default function MapView() {
     if (!data) return []
     const arcs = data.continentArcs[String(year)]
     if (!arcs) return []
-    const entries = Object.entries(arcs) as [string, ContinentArcData][]
-    const maxInflow = Math.max(...entries.map(([, a]) => a.totalInflow), 1)
-    const globalTotal = data.meta.yearTotals?.[String(year)]?.totalInflow ?? 0
+    const entries = (Object.entries(arcs) as [string, ContinentArcData][]).map(([continent, arc]) => {
+      const countries = data.countries.filter(c => c.continent === continent)
+      const totalInflow = selectedVisaType
+        ? countries.reduce((sum, c) => sum + getMetricValue(c.byYear[String(year)], selectedVisaType), 0)
+        : arc.totalInflow
+      const topCountries = countries
+        .map(c => ({
+          name: c.name,
+          inflow: getMetricValue(c.byYear[String(year)], selectedVisaType),
+        }))
+        .filter(c => c.inflow > 0)
+        .sort((a, b) => b.inflow - a.inflow)
+        .slice(0, 3)
+      return { continent, arc, totalInflow, topCountries }
+    })
+    const maxInflow = Math.max(...entries.map(e => e.totalInflow), 1)
+    const globalTotal = selectedVisaType
+      ? data.countries.reduce((sum, c) => sum + getMetricValue(c.byYear[String(year)], selectedVisaType), 0)
+      : data.meta.yearTotals?.[String(year)]?.totalInflow ?? 0
 
-    return entries.flatMap(([continent, arc]) => {
+    return entries.flatMap(({ continent, arc, totalInflow, topCountries }) => {
       const ctrl = CONTINENT_CTRL[continent]
       if (!ctrl) return []
       const p0: [number, number] =
@@ -164,27 +181,18 @@ export default function MapView() {
       const p2: [number, number] = NZ_CENTER
       const pts = bezierPoints(p0, ctrl, p2)
       const widthScale = continent === 'Oceania' ? 12 : 18
-      const baseWidth = Math.max(3, (arc.totalInflow / maxInflow) * widthScale)
+      const baseWidth = Math.max(3, (totalInflow / maxInflow) * widthScale)
       const rgb = continentRgb(continent)
-      const topCountries = data.countries
-        .filter(c => c.continent === continent)
-        .map(c => ({
-          name: c.name,
-          inflow: c.byYear[String(year)]?.totalInflow ?? 0,
-        }))
-        .filter(c => c.inflow > 0)
-        .sort((a, b) => b.inflow - a.inflow)
-        .slice(0, 3)
-      const shareOfTotal = globalTotal > 0 ? (arc.totalInflow / globalTotal) * 100 : 0
-      return taperedSegments(pts, baseWidth, rgb, continent, arc.totalInflow, shareOfTotal, topCountries)
+      const shareOfTotal = globalTotal > 0 ? (totalInflow / globalTotal) * 100 : 0
+      return taperedSegments(pts, baseWidth, rgb, continent, totalInflow, shareOfTotal, topCountries)
     })
-  }, [data, year])
+  }, [data, year, selectedVisaType])
 
   const buildCountryFeatures = useCallback(() => {
     if (!data) return []
     return data.countries.map((c: CountryData) => {
       const yd = c.byYear[String(year)]
-      const inflow = yd?.totalInflow ?? 0
+      const inflow = getMetricValue(yd, selectedVisaType)
       const cls = classIndex(inflow, data.meta.jenksBreaks)
       const hex = inflowToColor(inflow, data.meta.jenksBreaks)
       const r = parseInt(hex.slice(1, 3), 16)
@@ -196,7 +204,7 @@ export default function MapView() {
         properties: { code: c.code, name: c.name, continent: c.continent, inflow, classIndex: cls, r, g, b },
       }
     }).filter(f => inflowClassFilter === null || f.properties.classIndex === inflowClassFilter)
-  }, [data, year, inflowClassFilter])
+  }, [data, year, inflowClassFilter, selectedVisaType])
 
   const updateLayers = useCallback(() => {
     if (!deckRef.current || !data) return
@@ -264,7 +272,9 @@ export default function MapView() {
     })
 
     const features = buildCountryFeatures()
-    const globalTotal = data.meta.yearTotals?.[String(year)]?.totalInflow ?? 0
+    const globalTotal = selectedVisaType
+      ? data.countries.reduce((sum, c) => sum + getMetricValue(c.byYear[String(year)], selectedVisaType), 0)
+      : data.meta.yearTotals?.[String(year)]?.totalInflow ?? 0
     const countryLayer = new GeoJsonLayer({
       id: 'country-dots',
       data: { type: 'FeatureCollection' as const, features },
@@ -285,7 +295,7 @@ export default function MapView() {
         if (info.object) {
           const code = info.object.properties.code
           const c = data.countries.find((x: CountryData) => x.code === code)
-          const inflow = c?.byYear[String(year)]?.totalInflow ?? 0
+          const inflow = getMetricValue(c?.byYear[String(year)], selectedVisaType)
           setCountryTooltip({
             x: (info as { x?: number }).x ?? 0,
             y: (info as { y?: number }).y ?? 0,
@@ -334,7 +344,7 @@ export default function MapView() {
     })
 
     deckRef.current.setProps({ layers: [continentFillLayer, glowLayer, coreLayer, countryLayer, highlightLayer] })
-  }, [data, year, viewMode, hoveredCountry, selectedCountry, worldGeo, buildTaperedPaths, buildCountryFeatures, setHoveredCountry, setSelectedCountry])
+  }, [data, year, viewMode, hoveredCountry, selectedCountry, selectedVisaType, worldGeo, buildTaperedPaths, buildCountryFeatures, setHoveredCountry, setSelectedCountry])
 
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return
@@ -461,6 +471,8 @@ export default function MapView() {
     )
   }
 
+  const metricLabel = visaTypeLabel(selectedVisaType)
+
   return (
     <div style={{ position: 'absolute', top: 0, left: 0, right: 320, bottom: 0 }}>
       <div ref={mapContainer} style={{ position: 'absolute', inset: 0 }} />
@@ -488,13 +500,13 @@ export default function MapView() {
             {arcTooltip.continent}
           </div>
           <div style={{ marginBottom: 8 }}>
-            Total Inflow:{' '}
+            {selectedVisaType ? `${metricLabel} Inflow` : 'Total Inflow'}:{' '}
             <span style={{ color: '#ffffff', fontWeight: 700 }}>
               {arcTooltip.totalInflow.toLocaleString()}
             </span>
           </div>
           <div style={{ marginBottom: 8 }}>
-            Share of Total:{' '}
+            Share of {selectedVisaType ? metricLabel : 'Total'}:{' '}
             <span style={{ color: '#ffffff', fontWeight: 700 }}>
               {arcTooltip.shareOfTotal.toFixed(2)}%
             </span>
@@ -535,13 +547,13 @@ export default function MapView() {
             {countryTooltip.name}
           </div>
           <div>
-            Inflow Volume:{' '}
+            {selectedVisaType ? `${metricLabel} Volume` : 'Inflow Volume'}:{' '}
             <span style={{ color: '#ffffff', fontWeight: 700 }}>
               {countryTooltip.inflow.toLocaleString()}
             </span>
           </div>
           <div>
-            Share of Total:{' '}
+            Share of {selectedVisaType ? metricLabel : 'Total'}:{' '}
             <span style={{ color: '#ffffff', fontWeight: 700 }}>
               {countryTooltip.shareOfTotal.toFixed(2)}%
             </span>
