@@ -12,7 +12,7 @@ const PALETTE = [
   '#00ffee', // class 5 – highest (neon cyan)
 ]
 
-const ZERO_COLOR = '#15203a'
+const ZERO_COLOR = '#4b5563'
 
 export function inflowToColor(value: number, breaks: number[]): string {
   if (!value || value === 0) return ZERO_COLOR

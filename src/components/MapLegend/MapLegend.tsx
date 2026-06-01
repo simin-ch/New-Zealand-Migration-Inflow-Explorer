@@ -3,7 +3,7 @@ import { PALETTE, ZERO_COLOR } from '../../utils/colorScale'
 import { formatNumber } from '../../utils/dataHelpers'
 
 export default function MapLegend() {
-  const { data, viewMode } = useAppStore()
+  const { data, viewMode, inflowClassFilter, setInflowClassFilter } = useAppStore()
   if (!data || viewMode === 'global') return null
 
   const breaks = data.meta.jenksBreaks
@@ -31,16 +31,39 @@ export default function MapLegend() {
         Inflow Volume
       </div>
       <div className="flex flex-col gap-1">
-        {colors.map((color, i) => (
-          <div key={i} className="flex items-center gap-2">
+        {colors.map((color, i) => {
+          const isActive = inflowClassFilter === i
+          return (
+          <button
+            key={i}
+            type="button"
+            onClick={() => setInflowClassFilter(isActive ? null : i)}
+            className="flex items-center gap-2 rounded px-1 py-0.5 text-left transition-colors hover:bg-white/5"
+            title={isActive ? 'Click to show all classes' : `Show ${labels[i]} only`}
+          >
             <div
               className="w-3 h-3 rounded-sm shrink-0"
-              style={{ backgroundColor: color, border: i === 0 ? '1px solid #2a3a5c' : 'none' }}
+              style={{
+                backgroundColor: color,
+                border: isActive ? '2px solid #00ffee' : (i === 0 ? '1px solid #9ca3af' : 'none'),
+                boxShadow: isActive ? '0 0 8px rgba(0,255,238,0.7)' : 'none',
+              }}
             />
-            <span className="text-[10px] text-[var(--color-text-dim)]">{labels[i]}</span>
-          </div>
-        ))}
+            <span className={`text-[10px] ${isActive ? 'text-neon-cyan' : 'text-[var(--color-text-dim)]'}`}>
+              {labels[i]}
+            </span>
+          </button>
+        )})}
       </div>
+      {inflowClassFilter !== null && (
+        <button
+          type="button"
+          onClick={() => setInflowClassFilter(null)}
+          className="mt-2 text-[10px] text-[var(--color-text-dim)] hover:text-neon-cyan"
+        >
+          Show all
+        </button>
+      )}
     </div>
   )
 }
