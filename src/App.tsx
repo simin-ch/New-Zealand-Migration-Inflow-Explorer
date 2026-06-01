@@ -1,4 +1,4 @@
-import { useEffect, Component, type ReactNode } from 'react'
+import { useEffect, useState, Component, type ReactNode } from 'react'
 import { useAppStore } from './store/useAppStore'
 import MapView from './components/Map/MapView'
 import Sidebar from './components/Sidebar/Sidebar'
@@ -24,15 +24,24 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: string |
 
 export default function App() {
   const { setData, data } = useAppStore()
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/data/migration.json')
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) {
+          throw new Error(`Could not load /data/migration.json (${r.status} ${r.statusText})`)
+        }
+        return r.json()
+      })
       .then((d: MigrationData) => {
         console.log('[App] Data loaded, countries:', d.countries.length, 'years:', d.meta.years)
         setData(d)
       })
-      .catch(err => console.error('[App] Failed to load migration data:', err))
+      .catch(err => {
+        console.error('[App] Failed to load migration data:', err)
+        setLoadError(err instanceof Error ? err.message : 'Failed to load migration data')
+      })
   }, [setData])
 
   return (
@@ -50,12 +59,25 @@ export default function App() {
             background: '#0a0e1a', zIndex: 50,
           }}>
             <div style={{ textAlign: 'center', color: '#6a80a8' }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: '50%',
-                border: '2px solid #00ffee', borderTopColor: 'transparent',
-                animation: 'spin 1s linear infinite', margin: '0 auto 12px',
-              }} />
-              <div>Loading migration data…</div>
+              {loadError ? (
+                <>
+                  <div style={{ color: '#ff6b6b', fontWeight: 700, marginBottom: 8 }}>
+                    Failed to load migration data
+                  </div>
+                  <div style={{ maxWidth: 460, lineHeight: 1.5 }}>
+                    {loadError}. Make sure <code>public/data/migration.json</code> exists, or run <code>npm run preprocess</code>.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{
+                    width: 40, height: 40, borderRadius: '50%',
+                    border: '2px solid #00ffee', borderTopColor: 'transparent',
+                    animation: 'spin 1s linear infinite', margin: '0 auto 12px',
+                  }} />
+                  <div>Loading migration data…</div>
+                </>
+              )}
             </div>
           </div>
         )}

@@ -1,6 +1,6 @@
 """
 Data preprocessing script for NZ Migration Inflow Explorer.
-Reads migration_data.xlsx and outputs public/data/migration.json.
+Reads migration_data1.xlsx and outputs public/data/migration.json.
 
 Usage:
     python3 scripts/preprocess.py

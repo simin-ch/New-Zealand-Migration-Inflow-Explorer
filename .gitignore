@@ -23,9 +23,6 @@ Thumbs.db
 # Raw data (large binary, not committed)
 migration_data.xlsx
 
-# Generated data (rebuilt from source)
-public/data/migration.json
-
 # Internal docs
 DESIGN_SPEC.md
 prompt.md

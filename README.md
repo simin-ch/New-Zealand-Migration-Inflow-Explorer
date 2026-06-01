@@ -33,7 +33,7 @@ An interactive web application that visualises international migration inflows i
 
 - **Node.js** ≥ 18 and **npm** ≥ 9
 - **Python** ≥ 3.10 (only needed to regenerate processed data)
-- The raw data file `migration_data.xlsx` must be present in the project root
+- The processed data file `public/data/migration.json` is committed so the app can run immediately after cloning
 
 ---
 
@@ -52,13 +52,23 @@ cd New-Zealand-Migration-Inflow-Explorer
 npm install
 ```
 
-### 3. Preprocess the migration data
+### 3. Start the development server
 
-This step reads `migration_data.xlsx` and writes `public/data/migration.json`.
+```bash
+npm run dev
+```
+
+The app is served at `http://localhost:5173` by default (Vite will print the exact URL).
+
+### Regenerate the migration data
+
+This step is optional for normal local setup. Re-run it only when the source Excel file changes.
+
+This step reads `migration_data1.xlsx` and writes `public/data/migration.json`.
 
 ```bash
 # Install Python dependencies (first time only)
-pip3 install numpy openpyxl
+pip3 install numpy
 
 # Run the preprocessor
 npm run preprocess
@@ -66,16 +76,7 @@ npm run preprocess
 python3 scripts/preprocess.py
 ```
 
-> The generated `public/data/migration.json` is consumed by the app at runtime.
-> You only need to re-run this step when the source Excel file changes.
-
-### 4. Start the development server
-
-```bash
-npm run dev
-```
-
-The app is served at `http://localhost:5173` by default (Vite will print the exact URL).
+> The generated `public/data/migration.json` is consumed by the app at runtime and should stay committed.
 
 ---
 
@@ -95,7 +96,7 @@ The app is served at `http://localhost:5173` by default (Vite will print the exa
 ```
 ├── public/
 │   └── data/
-│       └── migration.json        # Generated – do not edit manually
+│       └── migration.json        # Generated runtime data, committed for local/dev deploys
 ├── scripts/
 │   └── preprocess.py             # Excel → JSON data pipeline
 ├── src/
@@ -109,7 +110,7 @@ The app is served at `http://localhost:5173` by default (Vite will print the exa
 │   │   └── useAppStore.ts        # Zustand global state
 │   ├── types/                    # Shared TypeScript types
 │   └── utils/                    # Colour scale, data helpers
-├── migration_data.xlsx           # Raw source data (not committed)
+├── migration_data1.xlsx          # Raw source data
 ├── index.html
 ├── vite.config.ts
 └── package.json
@@ -135,4 +136,4 @@ npm run preview
 ## Notes
 
 - The map tiles are loaded from the [CARTO Basemaps](https://carto.com/basemaps/) free CDN. No API key is required.
-- `migration_data.xlsx` contains the raw Stats NZ migration data and is intentionally excluded from version control.
+- `migration_data1.xlsx` contains the raw Stats NZ migration data used by `scripts/preprocess.py`.
