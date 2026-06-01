@@ -18,6 +18,7 @@ export interface YearData {
     student: number
     work: number
     resident: number
+    visitor: number
     other: number
   }
   age: {
@@ -46,6 +47,11 @@ export interface MigrationData {
     years: number[]
     continents: string[]
     jenksBreaks: number[]
+    yearTotals: Record<string, {
+      totalInflow: number
+      totalOutflow: number
+      net: number
+    }>
   }
   countries: CountryData[]
   continentArcs: Record<string, Record<string, ContinentArcData>>

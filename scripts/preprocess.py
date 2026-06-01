@@ -122,13 +122,13 @@ def get_si_text(si_elem) -> str:
     return ''.join(parts)
 
 
-def read_xlsx(path: str) -> list[dict]:
+def read_xlsx(path: str, sheet_path: str = 'xl/worksheets/sheet1.xml') -> list[dict]:
     with zipfile.ZipFile(path) as z:
         with z.open('xl/sharedStrings.xml') as f:
             ss_tree = ET.parse(f)
         strings = [get_si_text(si) for si in ss_tree.findall('.//ns:si', NS)]
 
-        with z.open('xl/worksheets/sheet1.xml') as f:
+        with z.open(sheet_path) as f:
             sheet_tree = ET.parse(f)
 
     sheet_rows = sheet_tree.findall('.//ns:row', NS)
@@ -185,12 +185,13 @@ VALID_CONTINENTS = set(CONTINENT_CENTERS.keys())
 
 def main():
     base = Path(__file__).parent.parent
-    src  = base / 'migration_data.xlsx'
+    src  = base / 'migration_data1.xlsx'
     dst  = base / 'public' / 'data' / 'migration.json'
     dst.parent.mkdir(parents=True, exist_ok=True)
 
     print('Reading xlsx…')
-    raw = read_xlsx(str(src))
+    raw = read_xlsx(str(src), 'xl/worksheets/sheet1.xml')
+    outflow_raw = read_xlsx(str(src), 'xl/worksheets/sheet2.xml')
     print(f'Total rows read: {len(raw)}')
     if raw:
         print(f'Sample row: {raw[0]}')
@@ -228,12 +229,20 @@ def main():
             'student':  to_int(r.get('Visa_Student')),
             'work':     to_int(r.get('Visa_Work')),
             'resident': to_int(r.get('Visa_Resident')),
+            'visitor':  to_int(r.get('Visa_Visitor')),
             'other':    to_int(r.get('Visa_Other')),
             'under18':  to_int(r.get('Age_Under_18')),
             'age18_30': to_int(r.get('Age_18_30')),
             'age31_50': to_int(r.get('Age_31_50')),
             'above50':  to_int(r.get('Age_Above_50')),
         }
+
+    outflow_by_year: dict[str, int] = defaultdict(int)
+    for r in outflow_raw:
+        year = r.get('Year')
+        if not year:
+            continue
+        outflow_by_year[year] += to_int(r.get('Total_Outflow'))
 
     years_available = sorted(bucket.keys(), key=int)
     print(f'Years found: {years_available}')
@@ -266,6 +275,7 @@ def main():
                     'student':  g(male,'student')  + g(female,'student')  + g(no_record,'student'),
                     'work':     g(male,'work')     + g(female,'work')     + g(no_record,'work'),
                     'resident': g(male,'resident') + g(female,'resident') + g(no_record,'resident'),
+                    'visitor':  g(male,'visitor')  + g(female,'visitor')  + g(no_record,'visitor'),
                     'other':    g(male,'other')    + g(female,'other')    + g(no_record,'other'),
                 },
                 'age': {
@@ -303,12 +313,22 @@ def main():
 
     # ---- Continent arcs per year -------------------------------------------
     continent_arcs: dict[str, dict[str, dict]] = {}
+    year_totals: dict[str, dict[str, int]] = {}
     for year, codes in bucket.items():
         cont_totals: dict[str, int] = defaultdict(int)
+        total_inflow = 0
         for code, sex_dict in codes.items():
             cont = country_meta[code]['continent']
             for sd in sex_dict.values():
-                cont_totals[cont] += sd.get('total', 0)
+                inflow = sd.get('total', 0)
+                cont_totals[cont] += inflow
+                total_inflow += inflow
+        total_outflow = outflow_by_year.get(year, 0)
+        year_totals[year] = {
+            'totalInflow': total_inflow,
+            'totalOutflow': total_outflow,
+            'net': total_inflow - total_outflow,
+        }
         continent_arcs[year] = {
             cont: {
                 'totalInflow': total,
@@ -325,6 +345,7 @@ def main():
             'years':       [int(y) for y in years_available],
             'continents':  sorted(VALID_CONTINENTS),
             'jenksBreaks': jenks_breaks_out,
+            'yearTotals':  year_totals,
         },
         'countries':     countries_out,
         'continentArcs': continent_arcs,
