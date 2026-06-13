@@ -3,8 +3,9 @@ import GlobalKPI from './GlobalKPI'
 import CountryProfile from './CountryProfile'
 
 export default function Sidebar() {
-  const { viewMode, hoveredCountry, selectedCountry } = useAppStore()
-  const showCountry = (hoveredCountry ?? selectedCountry) !== null
+  const { viewMode, selectedCountry } = useAppStore()
+  const showCountryPanel = selectedCountry !== null
+  const isContinentView = viewMode !== 'global'
 
   return (
     <aside
@@ -27,19 +28,19 @@ export default function Sidebar() {
         <div className="flex items-center gap-2">
           <div
             className={`w-2 h-2 rounded-full transition-colors duration-300 ${
-              showCountry ? 'bg-neon-cyan' : 'bg-neon-blue'
+              isContinentView ? 'bg-neon-cyan' : 'bg-neon-blue'
             }`}
-            style={{ boxShadow: showCountry ? '0 0 6px #00ffee' : '0 0 6px #00b4d8' }}
+            style={{ boxShadow: isContinentView ? '0 0 6px #00ffee' : '0 0 6px #00b4d8' }}
           />
           <span className="text-xs text-[var(--color-text-dim)] uppercase tracking-wider">
-            {showCountry ? 'Country Mode' : 'Global Mode'}
+            {isContinentView ? 'Country Mode' : 'Global Mode'}
           </span>
         </div>
       </div>
 
       {/* Content — scrollable */}
       <div className="flex-1 overflow-y-auto px-5 pb-6">
-        {showCountry ? <CountryProfile /> : <GlobalKPI />}
+        {showCountryPanel ? <CountryProfile /> : <GlobalKPI />}
       </div>
 
       {/* Usage hint */}
@@ -51,12 +52,11 @@ export default function Sidebar() {
           {viewMode === 'global' ? (
             <>
               <div>Double-click map → Zoom into region</div>
-              <div>Right-click → Return to global view</div>
             </>
           ) : (
             <>
               <div>Drag to pan · Scroll to zoom</div>
-              <div>Hover country → Profile · Right-click → Global view</div>
+              <div>Click country → Profile · Double-click → Global view</div>
             </>
           )}
         </div>

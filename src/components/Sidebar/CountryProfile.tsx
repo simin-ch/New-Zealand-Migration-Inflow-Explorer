@@ -89,6 +89,8 @@ function PyramidChart({ yd }: { yd: YearData }) {
   const femaleVals = hasFemale ? maleKeys.map(k => female![k]) : [0, 0, 0, 0]
 
   const maxVal = Math.max(...maleVals, ...femaleVals, 1)
+  const maleTotal = hasMale ? maleVals.reduce((sum, v) => sum + v, 0) : null
+  const femaleTotal = hasFemale ? femaleVals.reduce((sum, v) => sum + v, 0) : null
 
   const option = {
     backgroundColor: 'transparent',
@@ -154,6 +156,21 @@ function PyramidChart({ yd }: { yd: YearData }) {
       data: ['Male', 'Female'],
       textStyle: { color: '#6a80a8', fontSize: 10 },
       itemWidth: 10, itemHeight: 10,
+      tooltip: {
+        show: true,
+        backgroundColor: '#0f1629',
+        borderColor: '#1a2744',
+        textStyle: { color: '#c8d8f0', fontSize: 11 },
+        formatter: (param: { name: string }) => {
+          if (param.name === 'Male') {
+            return hasMale ? `♂ Male total: ${formatNumber(maleTotal!)}` : '♂ Male: no data'
+          }
+          if (param.name === 'Female') {
+            return hasFemale ? `♀ Female total: ${formatNumber(femaleTotal!)}` : '♀ Female: no data'
+          }
+          return param.name
+        },
+      },
     },
   }
 
@@ -257,10 +274,10 @@ function TrendChart({
 
 export default function CountryProfile() {
   const {
-    data, hoveredCountry, selectedCountry, year, selectedVisaType,
+    data, selectedCountry, year, selectedVisaType,
     setHoveredCountry, setSelectedCountry, setFocusedCountry, setSelectedVisaType,
   } = useAppStore()
-  const country = selectedCountry ?? hoveredCountry
+  const country = selectedCountry
   if (!country) return null
 
   const yd = country.byYear[String(year)]

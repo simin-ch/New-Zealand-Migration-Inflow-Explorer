@@ -45,7 +45,7 @@ export default function MapLegend() {
               className="w-3 h-3 rounded-sm shrink-0"
               style={{
                 backgroundColor: color,
-                border: isActive ? '2px solid #00ffee' : (i === 0 ? '1px solid #9ca3af' : 'none'),
+                border: isActive ? '2px solid #00ffee' : (i === 0 ? '1px solid #c5d3e8' : 'none'),
                 boxShadow: isActive ? '0 0 8px rgba(0,255,238,0.7)' : 'none',
               }}
             />

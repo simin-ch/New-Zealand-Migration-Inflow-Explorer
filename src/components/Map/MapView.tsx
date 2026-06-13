@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
 import maplibregl from 'maplibre-gl'
 import { MapboxOverlay } from '@deck.gl/mapbox'
+import type { Layer } from '@deck.gl/core'
 import { PathLayer, GeoJsonLayer } from '@deck.gl/layers'
 import { useAppStore } from '../../store/useAppStore'
 import { classIndex, inflowToColor } from '../../utils/colorScale'
@@ -14,6 +15,11 @@ const GLOBAL_ZOOM_TARGET = 0.92
 const CONTINENT_ZOOM = 3.5
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
 const BEZIER_STEPS = 32
+const ARC_MIN_WIDTH = 1.2
+const ARC_MAX_WIDTH = 34
+const ARC_WIDTH_EXPONENT = 1.4
+const FLOW_SPEED = 0.0016
+const FLOW_PULSE_SPAN = 3
 
 /**
  * Quadratic bezier control points per continent.
@@ -41,6 +47,17 @@ const CONTINENT_SOURCE_OVERRIDES: Record<string, [number, number]> = {
   Americas: [-80, 10],
 }
 
+interface ContinentArc {
+  pts: [number, number][]
+  baseWidth: number
+  rgb: [number, number, number]
+  continent: string
+  totalInflow: number
+  shareOfTotal: number
+  topCountries: { name: string; inflow: number }[]
+  flowRatio: number
+}
+
 interface TaperedSegment {
   path: [[number, number], [number, number]]
   width: number
@@ -49,6 +66,13 @@ interface TaperedSegment {
   totalInflow: number
   shareOfTotal: number
   topCountries: { name: string; inflow: number }[]
+}
+
+interface FlowSegment {
+  path: [number, number][]
+  width: number
+  color: [number, number, number, number]
+  continent: string
 }
 
 interface ArcTooltip {
@@ -125,10 +149,54 @@ function taperedSegments(
   })
 }
 
+/** Bright pulses that travel from each continent toward NZ. */
+function buildFlowSegments(arcs: ContinentArc[], phase: number): FlowSegment[] {
+  return arcs.flatMap(arc => {
+    const pulseCount = arc.flowRatio > 0.3 ? 4 : arc.flowRatio > 0.08 ? 4 : 3
+    const speed = 0.35 + arc.flowRatio * 0.5
+
+    return Array.from({ length: pulseCount }, (_, p) => {
+      const t = (phase * speed + p / pulseCount) % 1
+      const idx = t * (arc.pts.length - 1)
+      const i0 = Math.max(0, Math.floor(idx) - 1)
+      const i1 = Math.min(arc.pts.length - 1, i0 + FLOW_PULSE_SPAN)
+      const path = arc.pts.slice(i0, i1 + 1)
+      if (path.length < 2) return null
+
+      const frac = 1 - t
+      const isAsia = arc.continent === 'Asia'
+      const widthMult = isAsia ? 0.42 : 0.36
+      const width = Math.max(0.5, arc.baseWidth * Math.pow(frac, 0.55) * widthMult)
+      const headFade = Math.sin(t * Math.PI)
+      const alpha = isAsia
+        ? Math.min(255, Math.round(125 + 130 * headFade))
+        : Math.round(90 + 165 * headFade)
+      const [r, g, b] = arc.rgb
+      const color: [number, number, number, number] = isAsia
+        ? [210, 255, 255, alpha]
+        : [
+            Math.min(255, r + 90),
+            Math.min(255, g + 90),
+            Math.min(255, b + 90),
+            alpha,
+          ]
+      return {
+        path,
+        width,
+        color,
+        continent: arc.continent,
+      }
+    }).filter((seg): seg is FlowSegment => seg !== null)
+  })
+}
+
 export default function MapView() {
   const mapContainer = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const deckRef = useRef<MapboxOverlay | null>(null)
+  const staticLayersRef = useRef<Layer[]>([])
+  const continentArcsRef = useRef<ContinentArc[]>([])
+  const flowPhaseRef = useRef(0)
   const hoveredFeatureRef = useRef<string | null>(null)
   const [mapError, setMapError] = useState<string | null>(null)
   const [worldGeo, setWorldGeo] = useState<WorldGeoJson | null>(null)
@@ -149,7 +217,7 @@ export default function MapView() {
     setHoveredCountry, setSelectedCountry, setFocusedCountry,
   } = useAppStore()
 
-  const buildTaperedPaths = useCallback((): TaperedSegment[] => {
+  const buildContinentArcs = useCallback((): ContinentArc[] => {
     if (!data) return []
     const arcs = data.continentArcs[String(year)]
     if (!arcs) return []
@@ -180,13 +248,70 @@ export default function MapView() {
         CONTINENT_SOURCE_OVERRIDES[continent] ?? [arc.centerLon, arc.centerLat]
       const p2: [number, number] = NZ_CENTER
       const pts = bezierPoints(p0, ctrl, p2)
-      const widthScale = continent === 'Oceania' ? 12 : 18
-      const baseWidth = Math.max(3, (totalInflow / maxInflow) * widthScale)
+      const flowRatio = totalInflow / maxInflow
+      const widthScale = continent === 'Oceania' ? 24 : ARC_MAX_WIDTH
+      const baseWidth = Math.max(
+        ARC_MIN_WIDTH,
+        Math.pow(flowRatio, ARC_WIDTH_EXPONENT) * widthScale,
+      )
       const rgb = continentRgb(continent)
       const shareOfTotal = globalTotal > 0 ? (totalInflow / globalTotal) * 100 : 0
-      return taperedSegments(pts, baseWidth, rgb, continent, totalInflow, shareOfTotal, topCountries)
+      return [{
+        pts,
+        baseWidth,
+        rgb,
+        continent,
+        totalInflow,
+        shareOfTotal,
+        topCountries,
+        flowRatio,
+      }]
     })
   }, [data, year, selectedVisaType])
+
+  const buildTaperedPaths = useCallback((continentArcs: ContinentArc[]): TaperedSegment[] => (
+    continentArcs.flatMap(({ pts, baseWidth, rgb, continent, totalInflow, shareOfTotal, topCountries }) =>
+      taperedSegments(pts, baseWidth, rgb, continent, totalInflow, shareOfTotal, topCountries),
+    )
+  ), [])
+
+  const updateFlowLayer = useCallback((phase: number) => {
+    if (!deckRef.current) return
+    const isGlobal = useAppStore.getState().viewMode === 'global'
+    const flowSegments = buildFlowSegments(continentArcsRef.current, phase)
+
+    const flowGlowLayer = new PathLayer<FlowSegment>({
+      id: 'arc-flow-glow',
+      data: flowSegments,
+      visible: isGlobal,
+      getPath: d => d.path,
+      getWidth: d => d.width * (d.continent === 'Asia' ? 1.4 : 2),
+      getColor: d => [d.color[0], d.color[1], d.color[2], Math.round(d.color[3] * 0.25)],
+      widthUnits: 'pixels',
+      widthMinPixels: 0,
+      pickable: false,
+      jointRounded: true,
+      capRounded: true,
+    })
+
+    const flowCoreLayer = new PathLayer<FlowSegment>({
+      id: 'arc-flow-core',
+      data: flowSegments,
+      visible: isGlobal,
+      getPath: d => d.path,
+      getWidth: d => d.width,
+      getColor: d => d.color,
+      widthUnits: 'pixels',
+      widthMinPixels: 0.5,
+      pickable: false,
+      jointRounded: true,
+      capRounded: true,
+    })
+
+    deckRef.current.setProps({
+      layers: [...staticLayersRef.current, flowGlowLayer, flowCoreLayer],
+    })
+  }, [])
 
   const buildCountryFeatures = useCallback(() => {
     if (!data) return []
@@ -223,7 +348,9 @@ export default function MapView() {
       pickable: false,
     })
 
-    const segments = buildTaperedPaths()
+    const continentArcs = buildContinentArcs()
+    continentArcsRef.current = continentArcs
+    const segments = buildTaperedPaths(continentArcs)
 
     // Soft glow layer: wider, very low alpha, blurs behind the core line
     const glowLayer = new PathLayer<TaperedSegment>({
@@ -343,8 +470,13 @@ export default function MapView() {
       pickable: false,
     })
 
-    deckRef.current.setProps({ layers: [continentFillLayer, glowLayer, coreLayer, countryLayer, highlightLayer] })
-  }, [data, year, viewMode, hoveredCountry, selectedCountry, selectedVisaType, worldGeo, buildTaperedPaths, buildCountryFeatures, setHoveredCountry, setSelectedCountry])
+    staticLayersRef.current = [continentFillLayer, glowLayer, coreLayer, countryLayer, highlightLayer]
+    if (isGlobal) {
+      updateFlowLayer(flowPhaseRef.current)
+    } else {
+      deckRef.current.setProps({ layers: staticLayersRef.current })
+    }
+  }, [data, year, viewMode, hoveredCountry, selectedCountry, selectedVisaType, worldGeo, buildContinentArcs, buildTaperedPaths, buildCountryFeatures, updateFlowLayer, setHoveredCountry, setSelectedCountry])
 
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return
@@ -390,30 +522,39 @@ export default function MapView() {
 
     map.on('error', (e) => console.error('[MapView]', e))
 
-    map.on('dblclick', (e) => {
+    const returnToGlobalView = () => {
+      setArcTooltip(null)
+      setCountryTooltip(null)
+      map.dragPan.disable()
+      map.scrollZoom.disable()
+      map.flyTo({ center: GLOBAL_CENTER, zoom: GLOBAL_ZOOM_TARGET, duration: 1000 })
+      const store = useAppStore.getState()
+      store.setViewMode('global')
+      store.setSelectedCountry(null)
+      store.setHoveredCountry(null)
+    }
+
+    // Deck.gl overlay sits above the map canvas and swallows maplibre dblclick events.
+    const onContainerDblClick = (e: MouseEvent) => {
       const currentMode = useAppStore.getState().viewMode
       if (currentMode === 'global') {
+        const rect = map.getContainer().getBoundingClientRect()
+        const lngLat = map.unproject([e.clientX - rect.left, e.clientY - rect.top])
         setArcTooltip(null)
-        map.flyTo({ center: [e.lngLat.lng, e.lngLat.lat], zoom: CONTINENT_ZOOM, duration: 1000 })
+        map.flyTo({ center: [lngLat.lng, lngLat.lat], zoom: CONTINENT_ZOOM, duration: 1000 })
         map.dragPan.enable()
         map.scrollZoom.enable()
         useAppStore.getState().setViewMode('continent')
         setSelectedContinent(null)
+      } else if (currentMode === 'continent') {
+        e.preventDefault()
+        e.stopPropagation()
+        returnToGlobalView()
       }
-    })
+    }
 
-    map.on('contextmenu', (e) => {
-      e.originalEvent.preventDefault()
-      const currentMode = useAppStore.getState().viewMode
-      if (currentMode === 'continent') {
-        map.dragPan.disable()
-        map.scrollZoom.disable()
-        map.flyTo({ center: GLOBAL_CENTER, zoom: GLOBAL_ZOOM_TARGET, duration: 1000 })
-        useAppStore.getState().setViewMode('global')
-        useAppStore.getState().setSelectedCountry(null)
-        useAppStore.getState().setHoveredCountry(null)
-      }
-    })
+    const mapContainerEl = map.getContainer()
+    mapContainerEl.addEventListener('dblclick', onContainerDblClick, true)
 
     map.on('zoomend', () => {
       const z = map.getZoom()
@@ -428,6 +569,7 @@ export default function MapView() {
     })
 
     return () => {
+      mapContainerEl.removeEventListener('dblclick', onContainerDblClick, true)
       setDeckReady(false)
       deckRef.current = null
       map.remove()
@@ -439,6 +581,19 @@ export default function MapView() {
   useEffect(() => {
     if (deckReady) updateLayers()
   }, [deckReady, updateLayers])
+
+  useEffect(() => {
+    if (!deckReady || viewMode !== 'global') return
+
+    let raf = 0
+    const tick = () => {
+      flowPhaseRef.current = (flowPhaseRef.current + FLOW_SPEED) % 1
+      updateFlowLayer(flowPhaseRef.current)
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [deckReady, viewMode, updateFlowLayer])
 
   useEffect(() => {
     if (!focusedCountry || !mapRef.current) return
