@@ -338,6 +338,25 @@ export default function MapView() {
     if (!deckRef.current || !data) return
     const isGlobal = viewMode === 'global'
 
+    const continentArcs = buildContinentArcs()
+    continentArcsRef.current = continentArcs
+
+    const setArcTooltipForContinent = (continent: string, x: number, y: number) => {
+      const arc = continentArcs.find(a => a.continent === continent)
+      if (!arc) {
+        setArcTooltip(null)
+        return
+      }
+      setArcTooltip({
+        x,
+        y,
+        continent: arc.continent,
+        totalInflow: arc.totalInflow,
+        shareOfTotal: arc.shareOfTotal,
+        topCountries: arc.topCountries,
+      })
+    }
+
     const continentFillLayer = new GeoJsonLayer({
       id: 'continent-fill',
       data: (worldGeo ?? { type: 'FeatureCollection', features: [] }) as unknown as never,
@@ -348,7 +367,15 @@ export default function MapView() {
         const [r, g, b] = continentRgb(f.properties.continent)
         return [r, g, b, 55] as [number, number, number, number]
       },
-      pickable: false,
+      pickable: isGlobal,
+      onHover: (info: { object?: { properties: { continent: string } } | null; x: number; y: number }) => {
+        if (!isGlobal) return
+        if (info.object) {
+          setArcTooltipForContinent(info.object.properties.continent, info.x, info.y)
+        } else {
+          setArcTooltip(null)
+        }
+      },
     })
 
     const nzFeature = worldGeo?.features.find(f => f.properties.iso_a3 === NZ_ISO)
@@ -367,8 +394,6 @@ export default function MapView() {
       pickable: false,
     })
 
-    const continentArcs = buildContinentArcs()
-    continentArcsRef.current = continentArcs
     const segments = buildTaperedPaths(continentArcs)
 
     // Soft glow layer: wider, very low alpha, blurs behind the core line
@@ -401,14 +426,7 @@ export default function MapView() {
       highlightColor: [255, 255, 255, 60],
       onHover: (info: { object?: TaperedSegment | null; x: number; y: number }) => {
         if (info.object) {
-          setArcTooltip({
-            x: info.x,
-            y: info.y,
-            continent: info.object.continent,
-            totalInflow: info.object.totalInflow,
-            shareOfTotal: info.object.shareOfTotal,
-            topCountries: info.object.topCountries,
-          })
+          setArcTooltipForContinent(info.object.continent, info.x, info.y)
         } else {
           setArcTooltip(null)
         }
