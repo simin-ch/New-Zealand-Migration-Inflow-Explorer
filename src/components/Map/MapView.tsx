@@ -10,6 +10,9 @@ import { getMetricValue, visaTypeLabel } from '../../utils/dataHelpers'
 import type { CountryData, ContinentArcData } from '../../types'
 
 const NZ_CENTER: [number, number] = [174.0, -41.0]
+const NZ_ISO = 'NZL'
+const NZ_HIGHLIGHT_FILL: [number, number, number, number] = [0, 255, 238, 125]
+const NZ_HIGHLIGHT_STROKE: [number, number, number, number] = [0, 255, 238, 235]
 const GLOBAL_CENTER: [number, number] = [25.0, -8.0]
 const GLOBAL_ZOOM_TARGET = 0.92
 const CONTINENT_ZOOM = 3.5
@@ -173,7 +176,7 @@ function buildFlowSegments(arcs: ContinentArc[], phase: number): FlowSegment[] {
         : Math.round(90 + 165 * headFade)
       const [r, g, b] = arc.rgb
       const color: [number, number, number, number] = isAsia
-        ? [210, 255, 255, alpha]
+        ? [120, 230, 185, alpha]
         : [
             Math.min(255, r + 90),
             Math.min(255, g + 90),
@@ -341,10 +344,26 @@ export default function MapView() {
       visible: true,
       filled: true,
       stroked: false,
-      getFillColor: (f: { properties: { continent: string } }) => {
+      getFillColor: (f: { properties: { continent: string; iso_a3: string } }) => {
         const [r, g, b] = continentRgb(f.properties.continent)
         return [r, g, b, 55] as [number, number, number, number]
       },
+      pickable: false,
+    })
+
+    const nzFeature = worldGeo?.features.find(f => f.properties.iso_a3 === NZ_ISO)
+    const nzHighlightLayer = new GeoJsonLayer({
+      id: 'nz-highlight',
+      data: {
+        type: 'FeatureCollection' as const,
+        features: nzFeature ? [nzFeature] : [],
+      } as unknown as never,
+      visible: isGlobal,
+      filled: true,
+      stroked: true,
+      getFillColor: NZ_HIGHLIGHT_FILL,
+      getLineColor: NZ_HIGHLIGHT_STROKE,
+      lineWidthMinPixels: 1.5,
       pickable: false,
     })
 
@@ -470,7 +489,14 @@ export default function MapView() {
       pickable: false,
     })
 
-    staticLayersRef.current = [continentFillLayer, glowLayer, coreLayer, countryLayer, highlightLayer]
+    staticLayersRef.current = [
+      continentFillLayer,
+      nzHighlightLayer,
+      glowLayer,
+      coreLayer,
+      countryLayer,
+      highlightLayer,
+    ]
     if (isGlobal) {
       updateFlowLayer(flowPhaseRef.current)
     } else {

@@ -1,7 +1,7 @@
 /** Canonical per-continent colors (RGBA arrays for deck.gl, hex for CSS/ECharts) */
 
 export const CONTINENT_COLOR_MAP: Record<string, [number, number, number]> = {
-  Asia:     [0,   255, 238],   // neon cyan
+  Asia:     [20,  150, 107],   // deep green
   Europe:   [74,  158, 255],   // sky blue
   Oceania:  [167, 139, 250],   // purple
   Americas: [245, 158,  11],   // amber
@@ -10,7 +10,7 @@ export const CONTINENT_COLOR_MAP: Record<string, [number, number, number]> = {
 }
 
 export const CONTINENT_HEX: Record<string, string> = {
-  Asia:     '#00ffee',
+  Asia:     '#14966b',
   Europe:   '#4a9eff',
   Oceania:  '#a78bfa',
   Americas: '#f59e0b',
