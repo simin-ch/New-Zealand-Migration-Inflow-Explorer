@@ -205,7 +205,7 @@ export default function MapView() {
   const [deckReady, setDeckReady] = useState(false)
 
   useEffect(() => {
-    fetch('/data/world_countries.geojson')
+    fetch(`${import.meta.env.BASE_URL}data/world_countries.geojson`)
       .then(r => r.json())
       .then((d: WorldGeoJson) => setWorldGeo(d))
       .catch(err => console.error('Failed to load world GeoJSON:', err))

@@ -27,10 +27,11 @@ export default function App() {
   const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/data/migration.json')
+    const dataUrl = `${import.meta.env.BASE_URL}data/migration.json`
+    fetch(dataUrl)
       .then(r => {
         if (!r.ok) {
-          throw new Error(`Could not load /data/migration.json (${r.status} ${r.statusText})`)
+          throw new Error(`Could not load ${dataUrl} (${r.status} ${r.statusText})`)
         }
         return r.json()
       })
