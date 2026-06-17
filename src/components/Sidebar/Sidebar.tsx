@@ -52,11 +52,13 @@ export default function Sidebar() {
           {viewMode === 'global' ? (
             <>
               <div>Double-click map → Zoom into region</div>
+              <div>Click visa type to filter</div>
             </>
           ) : (
             <>
               <div>Drag to pan · Scroll to zoom</div>
               <div>Click country → Profile · Double-click → Global view</div>
+              <div>Click visa type · Inflow Volume legend to filter</div>
             </>
           )}
         </div>
