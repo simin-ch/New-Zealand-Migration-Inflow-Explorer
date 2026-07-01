@@ -4,7 +4,7 @@ An interactive web application that visualises international migration inflows i
 
 **Data source:** Statistics New Zealand (Stats NZ), 2016–2025
 
-**Live demo: ** https://simin-ch.github.io/New-Zealand-Migration-Inflow-Explorer/
+**Live demo:** https://simin-ch.github.io/New-Zealand-Migration-Inflow-Explorer/
 
 
 ---
